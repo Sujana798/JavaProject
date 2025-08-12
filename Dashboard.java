@@ -16,6 +16,9 @@ import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.List;
 import java.io.PrintWriter;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import javax.swing.border.Border;
 
 public class Dashboard extends JFrame {
     private final String username;
@@ -60,6 +63,8 @@ public class Dashboard extends JFrame {
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
+
+
         mainContentPanel = new JPanel(new BorderLayout());
 
         loadCoursesAndResources();
@@ -77,6 +82,9 @@ public class Dashboard extends JFrame {
         add(mainContentPanel, BorderLayout.CENTER);
 
         showPage("Dashboard");
+        this.revalidate();
+        this.repaint();
+
 
         setVisible(true);
     }
@@ -221,7 +229,7 @@ public class Dashboard extends JFrame {
         }
     }
 
-    private JPanel createDashboardPanel() {
+    /*private JPanel createDashboardPanel() {
         JPanel panel = new JPanel();
         panel.setLayout(new BorderLayout());
 
@@ -229,7 +237,7 @@ public class Dashboard extends JFrame {
         statsPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         JLabel redPanel = createColorPanel("Courses: 0", new Color(255, 99, 71));
-        JLabel greenPanel = createColorPanel("Resources Due: 0", new Color(50, 205, 50));
+        JLabel greenPanel = createColorPanel("Resources : 0", new Color(50, 205, 50));
         JLabel bluePanel = createColorPanel("Last Reviewed: None", new Color(70, 130, 180));
 
         statsPanel.add(redPanel);
@@ -253,7 +261,7 @@ public class Dashboard extends JFrame {
         dashboardResourcesDueArea.setFont(new Font("Segoe UI", Font.PLAIN, 16));
         dashboardResourcesDueArea.setEditable(false);
         JPanel resourcesDuePanel = new JPanel(new BorderLayout());
-        JLabel resourcesDueTitle = new JLabel("Resources Due Soon");
+        JLabel resourcesDueTitle = new JLabel("Resources ");
         resourcesDueTitle.setFont(new Font("Segoe UI", Font.BOLD, 28)); // Larger font
         resourcesDueTitle.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
         resourcesDuePanel.add(resourcesDueTitle, BorderLayout.NORTH);
@@ -268,7 +276,7 @@ public class Dashboard extends JFrame {
         return panel;
     }
 
-    private JLabel createColorPanel(String text, Color bgColor) {
+   private JLabel createColorPanel(String text, Color bgColor) {
         JLabel label = new JLabel(text, SwingConstants.CENTER);
         label.setOpaque(true);
         label.setBackground(bgColor);
@@ -276,15 +284,511 @@ public class Dashboard extends JFrame {
         label.setFont(new Font("Segoe UI", Font.BOLD, 20));
         label.setBorder(BorderFactory.createEmptyBorder(40, 10, 40, 10));
         return label;
+    }*/
+
+    private JPanel createDashboardPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BorderLayout());
+        panel.setBackground(new Color(245, 247, 250));
+
+        // Create main scroll pane for the entire dashboard
+        JScrollPane mainScrollPane = new JScrollPane();
+        mainScrollPane.setBorder(null);
+        mainScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+
+        JPanel mainContent = new JPanel();
+        mainContent.setLayout(new BoxLayout(mainContent, BoxLayout.Y_AXIS));
+        mainContent.setBackground(new Color(245, 247, 250));
+        mainContent.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        // Header Section
+        JPanel headerPanel = createHeaderPanel();
+        mainContent.add(headerPanel);
+        mainContent.add(Box.createRigidArea(new Dimension(0, 25)));
+
+        // Stats Cards Section
+        JPanel statsPanel = createStatsPanel();
+        mainContent.add(statsPanel);
+        mainContent.add(Box.createRigidArea(new Dimension(0, 25)));
+
+        // Quick Actions Section
+        JPanel quickActionsPanel = createQuickActionsPanel();
+        mainContent.add(quickActionsPanel);
+        mainContent.add(Box.createRigidArea(new Dimension(0, 25)));
+
+        // Content Grid Section
+        JPanel contentGrid = createContentGrid();
+        mainContent.add(contentGrid);
+        mainContent.add(Box.createRigidArea(new Dimension(0, 25)));
+
+        // Study Streak Section
+        JPanel studyStreakPanel = createStudyStreakPanel();
+        mainContent.add(studyStreakPanel);
+
+        mainScrollPane.setViewportView(mainContent);
+        panel.add(mainScrollPane, BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    private JPanel createHeaderPanel() {
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBackground(new Color(245, 247, 250));
+        header.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
+
+        JLabel titleLabel = new JLabel("Study Dashboard", SwingConstants.CENTER);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 36));
+        titleLabel.setForeground(new Color(51, 51, 51));
+
+        JLabel subtitleLabel = new JLabel("Welcome back! Here's your learning progress overview", SwingConstants.CENTER);
+        subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+        subtitleLabel.setForeground(new Color(102, 102, 102));
+
+        JPanel titlePanel = new JPanel();
+        titlePanel.setLayout(new BoxLayout(titlePanel, BoxLayout.Y_AXIS));
+        titlePanel.setBackground(new Color(245, 247, 250));
+        titlePanel.add(titleLabel);
+        titlePanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        titlePanel.add(subtitleLabel);
+
+        header.add(titlePanel, BorderLayout.CENTER);
+        return header;
+    }
+
+    private JPanel createStatsPanel() {
+        JPanel statsPanel = new JPanel(new GridLayout(1, 4, 20, 0));
+        statsPanel.setBackground(new Color(245, 247, 250));
+
+        // Course Stats Card
+        JPanel coursesCard = createStatCard("📚", "Total Courses", "0", new Color(76, 175, 80), 75);
+
+        // Resources Stats Card
+        JPanel resourcesCard = createStatCard("📄", "Study Resources", "0", new Color(33, 150, 243), 60);
+
+        // Assessments Stats Card
+        JPanel assessmentsCard = createStatCard("📝", "Due This Week", "0", new Color(255, 152, 0), 40);
+
+        // Progress Stats Card
+        JPanel progressCard = createStatCard("⭐", "Completion Rate", "87%", new Color(156, 39, 176), 87);
+
+        statsPanel.add(coursesCard);
+        statsPanel.add(resourcesCard);
+        statsPanel.add(assessmentsCard);
+        statsPanel.add(progressCard);
+
+        return statsPanel;
+    }
+
+    private JPanel createStatCard(String icon, String label, String value, Color accentColor, int progressValue) {
+        JPanel card = new JPanel();
+        card.setLayout(new BorderLayout());
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(230, 230, 230), 1),
+                BorderFactory.createEmptyBorder(20, 20, 20, 20)
+        ));
+
+        // Add rounded corners effect
+        card.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(15, new Color(230, 230, 230)),
+                BorderFactory.createEmptyBorder(20, 20, 20, 20)
+        ));
+
+        // Header with icon and value
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(Color.WHITE);
+
+        JLabel iconLabel = new JLabel(icon);
+        iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 28));
+        iconLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        iconLabel.setPreferredSize(new Dimension(50, 50));
+
+        JLabel valueLabel = new JLabel(value, SwingConstants.RIGHT);
+        valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 32));
+        valueLabel.setForeground(new Color(51, 51, 51));
+
+        headerPanel.add(iconLabel, BorderLayout.WEST);
+        headerPanel.add(valueLabel, BorderLayout.CENTER);
+
+        // Label
+        JLabel labelText = new JLabel(label);
+        labelText.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        labelText.setForeground(new Color(102, 102, 102));
+
+        // Progress bar
+        JPanel progressPanel = new JPanel(new BorderLayout());
+        progressPanel.setBackground(Color.WHITE);
+        progressPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+
+        JProgressBar progressBar = new JProgressBar(0, 100);
+        progressBar.setValue(progressValue);
+        progressBar.setStringPainted(false);
+        progressBar.setBackground(new Color(240, 240, 240));
+        progressBar.setForeground(accentColor);
+        progressBar.setPreferredSize(new Dimension(0, 8));
+        progressBar.setBorderPainted(false);
+
+        progressPanel.add(progressBar, BorderLayout.CENTER);
+
+        card.add(headerPanel, BorderLayout.NORTH);
+        card.add(labelText, BorderLayout.CENTER);
+        card.add(progressPanel, BorderLayout.SOUTH);
+
+        // Add hover effect
+        card.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                card.setBackground(new Color(248, 249, 250));
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                card.setBackground(Color.WHITE);
+            }
+        });
+
+        return card;
+    }
+
+    private JPanel createQuickActionsPanel() {
+        JPanel quickActions = new JPanel(new BorderLayout());
+        quickActions.setBackground(new Color(102, 126, 234));
+        quickActions.setBorder(new RoundedBorder(15, new Color(102, 126, 234)));
+
+        JPanel contentPanel = new JPanel(new BorderLayout());
+        contentPanel.setBackground(new Color(102, 126, 234));
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(25, 25, 25, 25));
+
+        JLabel titleLabel = new JLabel("Quick Actions");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        titleLabel.setForeground(Color.WHITE);
+
+        JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 15));
+        buttonsPanel.setBackground(new Color(102, 126, 234));
+
+        JButton addCourseBtn = createQuickActionButton("➕ Add Course");
+        JButton addResourceBtn = createQuickActionButton("📎 Add Resource");
+        JButton addAssessmentBtn = createQuickActionButton("📝 Add Assessment");
+        JButton viewCalendarBtn = createQuickActionButton("📅 View Calendar");
+
+        // Add action listeners
+        addCourseBtn.addActionListener(e -> showPage("Courses"));
+        addResourceBtn.addActionListener(e -> showPage("Courses"));
+        addAssessmentBtn.addActionListener(e -> showPage("Assessments"));
+        viewCalendarBtn.addActionListener(e -> showPage("Calendar"));
+
+        buttonsPanel.add(addCourseBtn);
+        buttonsPanel.add(addResourceBtn);
+        buttonsPanel.add(addAssessmentBtn);
+        buttonsPanel.add(viewCalendarBtn);
+
+        contentPanel.add(titleLabel, BorderLayout.NORTH);
+        contentPanel.add(buttonsPanel, BorderLayout.CENTER);
+
+        quickActions.add(contentPanel);
+        return quickActions;
+    }
+
+    private JButton createQuickActionButton(String text) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        button.setForeground(Color.WHITE);
+        button.setBackground(new Color(255, 255, 255, 40));
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(255, 255, 255, 60), 2),
+                BorderFactory.createEmptyBorder(12, 20, 12, 20)
+        ));
+        button.setFocusPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                button.setBackground(new Color(255, 255, 255, 60));
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                button.setBackground(new Color(255, 255, 255, 40));
+            }
+        });
+
+        return button;
+    }
+
+    private JPanel createContentGrid() {
+        JPanel contentGrid = new JPanel(new GridLayout(2, 2, 20, 20));
+        contentGrid.setBackground(new Color(245, 247, 250));
+
+        // My Courses Panel
+        JPanel coursesPanel = createSectionCard("📚 My Courses", createCoursesListPanel());
+
+        // Upcoming Deadlines Panel
+        JPanel deadlinesPanel = createSectionCard("🎯 Upcoming Deadlines", createDeadlinesPanel());
+
+        // Recent Activity Panel
+        JPanel activityPanel = createSectionCard("📈 Recent Activity", createActivityPanel());
+
+        // Recent Resources Panel
+        JPanel resourcesPanel = createSectionCard("📚 Recent Resources", createResourcesListPanel());
+
+        contentGrid.add(coursesPanel);
+        contentGrid.add(deadlinesPanel);
+        contentGrid.add(activityPanel);
+        contentGrid.add(resourcesPanel);
+
+        return contentGrid;
+    }
+
+    private JPanel createSectionCard(String title, JPanel content) {
+        JPanel card = new JPanel(new BorderLayout());
+        card.setBackground(Color.WHITE);
+        card.setBorder(new RoundedBorder(15, new Color(230, 230, 230)));
+
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(Color.WHITE);
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(20, 25, 15, 25));
+
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(new Color(51, 51, 51));
+
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+
+        JPanel contentPanel = new JPanel(new BorderLayout());
+        contentPanel.setBackground(Color.WHITE);
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(0, 25, 20, 25));
+        contentPanel.add(content, BorderLayout.CENTER);
+
+        card.add(headerPanel, BorderLayout.NORTH);
+        card.add(contentPanel, BorderLayout.CENTER);
+
+        return card;
+    }
+
+    private JPanel createCoursesListPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(Color.WHITE);
+
+        dashboardMyCoursesArea = new JTextArea();
+        dashboardMyCoursesArea.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        dashboardMyCoursesArea.setEditable(false);
+        dashboardMyCoursesArea.setBackground(Color.WHITE);
+        dashboardMyCoursesArea.setBorder(null);
+
+        JScrollPane scrollPane = new JScrollPane(dashboardMyCoursesArea);
+        scrollPane.setBorder(null);
+        scrollPane.setPreferredSize(new Dimension(0, 200));
+        scrollPane.setBackground(Color.WHITE);
+
+        panel.add(scrollPane);
+        return panel;
+    }
+
+    private JPanel createDeadlinesPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(Color.WHITE);
+
+        // Sample upcoming deadlines
+        panel.add(createDeadlineItem("Machine Learning Assignment", "Due in 2 days", "📝", true));
+        panel.add(Box.createRigidArea(new Dimension(0, 8)));
+        panel.add(createDeadlineItem("Database Quiz", "Due in 3 days", "📊", true));
+        panel.add(Box.createRigidArea(new Dimension(0, 8)));
+        panel.add(createDeadlineItem("Software Engineering Project", "Due in 1 week", "💻", false));
+
+        return panel;
+    }
+
+    private JPanel createDeadlineItem(String title, String dueDate, String icon, boolean urgent) {
+        JPanel item = new JPanel(new BorderLayout());
+        item.setBackground(urgent ? new Color(255, 235, 238) : new Color(241, 248, 233));
+        item.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(urgent ? new Color(244, 67, 54) : new Color(76, 175, 80), 0, true),
+                BorderFactory.createEmptyBorder(12, 15, 12, 15)
+        ));
+
+        // Set left border
+        item.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 4, 0, 0, urgent ? new Color(244, 67, 54) : new Color(76, 175, 80)),
+                BorderFactory.createEmptyBorder(12, 15, 12, 15)
+        ));
+
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        titleLabel.setForeground(new Color(51, 51, 51));
+
+        JPanel metaPanel = new JPanel(new BorderLayout());
+        metaPanel.setBackground(item.getBackground());
+
+        JLabel dueDateLabel = new JLabel(dueDate);
+        dueDateLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        dueDateLabel.setForeground(new Color(102, 102, 102));
+
+        JLabel iconLabel = new JLabel(icon);
+        iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 14));
+
+        metaPanel.add(dueDateLabel, BorderLayout.WEST);
+        metaPanel.add(iconLabel, BorderLayout.EAST);
+
+        JPanel contentPanel = new JPanel();
+        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+        contentPanel.setBackground(item.getBackground());
+        contentPanel.add(titleLabel);
+        contentPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        contentPanel.add(metaPanel);
+
+        item.add(contentPanel, BorderLayout.CENTER);
+        return item;
+    }
+
+    private JPanel createActivityPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(Color.WHITE);
+
+        // Sample activities
+        panel.add(createActivityItem("Added new resource: Python Tutorial", "2 hours ago", "+", new Color(76, 175, 80)));
+        panel.add(Box.createRigidArea(new Dimension(0, 8)));
+        panel.add(createActivityItem("Completed: Data Structures Quiz", "Yesterday", "✓", new Color(156, 39, 176)));
+        panel.add(Box.createRigidArea(new Dimension(0, 8)));
+        panel.add(createActivityItem("Updated course: Machine Learning", "2 days ago", "✏", new Color(33, 150, 243)));
+        panel.add(Box.createRigidArea(new Dimension(0, 8)));
+        panel.add(createActivityItem("Added new course: Web Development", "3 days ago", "+", new Color(76, 175, 80)));
+
+        return panel;
+    }
+
+    private JPanel createActivityItem(String title, String time, String icon, Color iconColor) {
+        JPanel item = new JPanel(new BorderLayout());
+        item.setBackground(Color.WHITE);
+        item.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0));
+
+        // Icon panel
+        JPanel iconPanel = new JPanel();
+        iconPanel.setBackground(iconColor);
+        iconPanel.setPreferredSize(new Dimension(35, 35));
+        iconPanel.setLayout(new BorderLayout());
+        iconPanel.setBorder(new RoundedBorder(17, iconColor));
+
+        JLabel iconLabel = new JLabel(icon, SwingConstants.CENTER);
+        iconLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        iconLabel.setForeground(Color.WHITE);
+        iconPanel.add(iconLabel, BorderLayout.CENTER);
+
+        // Content panel
+        JPanel contentPanel = new JPanel();
+        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+        contentPanel.setBackground(Color.WHITE);
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(0, 15, 0, 0));
+
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        titleLabel.setForeground(new Color(51, 51, 51));
+
+        JLabel timeLabel = new JLabel(time);
+        timeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        timeLabel.setForeground(new Color(136, 136, 136));
+
+        contentPanel.add(titleLabel);
+        contentPanel.add(Box.createRigidArea(new Dimension(0, 2)));
+        contentPanel.add(timeLabel);
+
+        item.add(iconPanel, BorderLayout.WEST);
+        item.add(contentPanel, BorderLayout.CENTER);
+
+        return item;
+    }
+
+    private JPanel createResourcesListPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(Color.WHITE);
+
+        dashboardResourcesDueArea = new JTextArea();
+        dashboardResourcesDueArea.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        dashboardResourcesDueArea.setEditable(false);
+        dashboardResourcesDueArea.setBackground(Color.WHITE);
+        dashboardResourcesDueArea.setBorder(null);
+
+        JScrollPane scrollPane = new JScrollPane(dashboardResourcesDueArea);
+        scrollPane.setBorder(null);
+        scrollPane.setPreferredSize(new Dimension(0, 200));
+        scrollPane.setBackground(Color.WHITE);
+
+        panel.add(scrollPane);
+        return panel;
+    }
+
+    private JPanel createStudyStreakPanel() {
+        JPanel streakPanel = new JPanel(new BorderLayout());
+        streakPanel.setBackground(new Color(255, 107, 107));
+        streakPanel.setBorder(new RoundedBorder(15, new Color(255, 107, 107)));
+
+        JPanel contentPanel = new JPanel();
+        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+        contentPanel.setBackground(new Color(255, 107, 107));
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        JLabel streakNumber = new JLabel("🔥 7", SwingConstants.CENTER);
+        streakNumber.setFont(new Font("Segoe UI", Font.BOLD, 48));
+        streakNumber.setForeground(Color.WHITE);
+
+        JLabel streakText = new JLabel("Day Study Streak! Keep it up!", SwingConstants.CENTER);
+        streakText.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        streakText.setForeground(Color.WHITE);
+
+        contentPanel.add(streakNumber);
+        contentPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+        contentPanel.add(streakText);
+
+        streakPanel.add(contentPanel, BorderLayout.CENTER);
+        return streakPanel;
     }
 
     private void updateDashboardData() {
+        // Update stats cards
+        updateStatCard(0, "Total Courses", String.valueOf(courseListModel.getSize()));
+
+        int totalResources = courseResourcesMap.values().stream().mapToInt(DefaultListModel::getSize).sum();
+        updateStatCard(1, "Study Resources", String.valueOf(totalResources));
+
+        // Count due assessments (you can implement this based on your assessment data)
+        updateStatCard(2, "Due This Week", "3");
+
+        // Update courses text area
+        StringBuilder coursesText = new StringBuilder();
+        for (int i = 0; i < courseListModel.size(); i++) {
+            coursesText.append("• ").append(courseListModel.get(i)).append("\n");
+        }
+        dashboardMyCoursesArea.setText(coursesText.toString());
+
+        // Update resources text area
+        StringBuilder resourcesText = new StringBuilder();
+        for (String course : courseResourcesMap.keySet()) {
+            DefaultListModel<Resource> resources = courseResourcesMap.get(course);
+            for (int i = 0; i < resources.size(); i++) {
+                resourcesText.append("• ").append(resources.get(i).toString()).append("\n");
+            }
+        }
+        dashboardResourcesDueArea.setText(resourcesText.toString());
+    }
+
+    private void updateStatCard(int cardIndex, String label, String value) {
+        // This method would update the stat cards with real data
+        // Implementation depends on how you store references to the stat cards
+        // You might want to store them in instance variables for easy access
+    }
+
+
+    /*private void updateDashboardData() {
         JLabel coursesLabel = (JLabel)((JPanel)((JPanel)pages.get("Dashboard")).getComponent(0)).getComponent(0);
         coursesLabel.setText("Courses: " + courseListModel.getSize());
 
         int totalResources = courseResourcesMap.values().stream().mapToInt(DefaultListModel::getSize).sum();
         JLabel resourcesLabel = (JLabel)((JPanel)((JPanel)pages.get("Dashboard")).getComponent(0)).getComponent(1);
-        resourcesLabel.setText("Resources Due: " + totalResources);
+        resourcesLabel.setText("Resources : " + totalResources);
 
         JLabel lastReviewLabel = (JLabel)((JPanel)((JPanel)pages.get("Dashboard")).getComponent(0)).getComponent(2);
         lastReviewLabel.setText("Last Reviewed: Today");
@@ -303,7 +807,9 @@ public class Dashboard extends JFrame {
             }
         }
         dashboardResourcesDueArea.setText(resourcesText.toString());
-    }
+    }*/
+
+
 
     private JPanel createCoursesPanel() {
         JPanel panel = new JPanel(new BorderLayout(10,10));
@@ -513,7 +1019,7 @@ public class Dashboard extends JFrame {
                 resources.removeElement(selectedResource);
                 resourcesModel.removeElement(selectedResource);
                 saveResources();
-                updateDashboardData();
+               updateDashboardData();
             }
         });
 
@@ -854,5 +1360,5 @@ public class Dashboard extends JFrame {
         panel.add(label, BorderLayout.CENTER);
         return panel;
     }
-    
+
 }
