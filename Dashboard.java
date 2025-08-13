@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.List;
 import java.io.PrintWriter;
@@ -26,6 +27,42 @@ public class Dashboard extends JFrame {
     private Map<String, JPanel> pages = new HashMap<>();
 
     private DefaultListModel<String> courseListModel = new DefaultListModel<>();
+
+    // Dashboard stat card references for dynamic updates
+    private JLabel totalCoursesValue;
+    private JLabel studyResourcesValue;
+    private JLabel dueThisWeekValue;
+    private JProgressBar totalCoursesProgress;
+    private JProgressBar studyResourcesProgress;
+    private JProgressBar dueThisWeekProgress;
+
+
+
+    // Shared events map for calendar and assessments
+    private Map<LocalDate, List<String[]>> events = new HashMap<>();
+
+    // Assessment data storage
+    private List<String[]> assessmentDataList = new ArrayList<>();
+
+    // Components for Assessments panel
+    private DefaultListModel<String> assessmentListModel;
+    private JList<String> assessmentList;
+
+    // Components for dashboard stats update
+    private JLabel progressCardValueLabel;   // New JLabel for completion rate card -> link to progress card in stats panel
+    private JProgressBar progressCardProgressBar; // New JProgressBar for completion card
+
+    // For calendar navigation
+    private JLabel calendarMonthLabel;
+    private JPanel calendarGridPanel;
+    private YearMonth calendarCurrentMonth;
+
+
+    // Dynamic content areas
+    private JPanel deadlinesContentPanel;
+    private JPanel activityContentPanel;
+    private DefaultListModel<String> deadlinesList = new DefaultListModel<>();
+    private DefaultListModel<String> activityList = new DefaultListModel<>();
 
     private static class Resource {
         String name;
@@ -44,7 +81,65 @@ public class Dashboard extends JFrame {
         }
     }
 
+    // Deadline class for better management
+    private static class Deadline {
+        String title;
+        String dueDate;
+        String type;
+        boolean urgent;
+
+        Deadline(String title, String dueDate, String type, boolean urgent) {
+            this.title = title;
+            this.dueDate = dueDate;
+            this.type = type;
+            this.urgent = urgent;
+        }
+
+        @Override
+        public String toString() {
+            return title + "|" + dueDate + "|" + type + "|" + urgent;
+        }
+
+        public static Deadline fromString(String str) {
+            String[] parts = str.split("\\|");
+            if (parts.length == 4) {
+                return new Deadline(parts[0], parts[1], parts[2], Boolean.parseBoolean(parts[3]));
+            }
+            return null;
+        }
+    }
+
+    // Activity class for better management
+    private static class Activity {
+        String description;
+        String time;
+        String icon;
+        String color;
+
+        Activity(String description, String time, String icon, String color) {
+            this.description = description;
+            this.time = time;
+            this.icon = icon;
+            this.color = color;
+        }
+
+        @Override
+        public String toString() {
+            return description + "|" + time + "|" + icon + "|" + color;
+        }
+
+        public static Activity fromString(String str) {
+            String[] parts = str.split("\\|");
+            if (parts.length == 4) {
+                return new Activity(parts[0], parts[1], parts[2], parts[3]);
+            }
+            return null;
+        }
+    }
+
     private Map<String, DefaultListModel<Resource>> courseResourcesMap = new HashMap<>();
+    private List<Deadline> deadlines = new ArrayList<>();
+    private List<Activity> activities = new ArrayList<>();
 
     private JTextArea dashboardMyCoursesArea;
     private JTextArea dashboardResourcesDueArea;
@@ -52,22 +147,26 @@ public class Dashboard extends JFrame {
     // File names for this user
     private final String coursesFile;
     private final String resourcesFile;
+    private final String deadlinesFile;
+    private final String activitiesFile;
 
     public Dashboard(String username) {
         this.username = username;
         coursesFile = "courses_" + username + ".txt";
         resourcesFile = "resources_" + username + ".txt";
+        deadlinesFile = "deadlines_" + username + ".txt";
+        activitiesFile = "activities_" + username + ".txt";
 
         setTitle("Study Resource Management Dashboard");
         setExtendedState(JFrame.MAXIMIZED_BOTH);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
-
-
         mainContentPanel = new JPanel(new BorderLayout());
 
         loadCoursesAndResources();
+        loadDeadlines();
+        loadActivities();
 
         pages.put("Dashboard", createDashboardPanel());
         pages.put("Courses", createCoursesPanel());
@@ -85,11 +184,10 @@ public class Dashboard extends JFrame {
         this.revalidate();
         this.repaint();
 
-
         setVisible(true);
     }
 
-    // --- Persistence methods ---
+    // --- Enhanced Persistence methods ---
 
     private void loadCoursesAndResources() {
         courseListModel.clear();
@@ -127,13 +225,52 @@ public class Dashboard extends JFrame {
                             String resourcePath = parts[3];
 
                             Resource resource = new Resource(resourceName, resourceType, resourcePath);
-
                             courseResourcesMap.computeIfAbsent(courseName, k -> new DefaultListModel<>()).addElement(resource);
                         }
                     }
                 }
             } catch (IOException e) {
                 JOptionPane.showMessageDialog(this, "Error loading resources: " + e.getMessage());
+            }
+        }
+    }
+
+    private void loadDeadlines() {
+        deadlines.clear();
+        File file = new File(deadlinesFile);
+        if (file.exists()) {
+            try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    if (!line.trim().isEmpty()) {
+                        Deadline deadline = Deadline.fromString(line.trim());
+                        if (deadline != null) {
+                            deadlines.add(deadline);
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                JOptionPane.showMessageDialog(this, "Error loading deadlines: " + e.getMessage());
+            }
+        }
+    }
+
+    private void loadActivities() {
+        activities.clear();
+        File file = new File(activitiesFile);
+        if (file.exists()) {
+            try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    if (!line.trim().isEmpty()) {
+                        Activity activity = Activity.fromString(line.trim());
+                        if (activity != null) {
+                            activities.add(activity);
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                JOptionPane.showMessageDialog(this, "Error loading activities: " + e.getMessage());
             }
         }
     }
@@ -164,7 +301,29 @@ public class Dashboard extends JFrame {
         }
     }
 
-    // --- rest of the UI code remains similar, with small updates to call saveCourses() and saveResources() after changes ---
+    private void saveDeadlines() {
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(deadlinesFile))) {
+            for (Deadline deadline : deadlines) {
+                bw.write(deadline.toString());
+                bw.newLine();
+            }
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this, "Error saving deadlines: " + e.getMessage());
+        }
+    }
+
+    private void saveActivities() {
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(activitiesFile))) {
+            for (Activity activity : activities) {
+                bw.write(activity.toString());
+                bw.newLine();
+            }
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this, "Error saving activities: " + e.getMessage());
+        }
+    }
+
+    // --- UI Creation methods remain the same until createStatsPanel ---
 
     private JPanel createSidebar() {
         JPanel sidebar = new JPanel();
@@ -187,6 +346,8 @@ public class Dashboard extends JFrame {
                 if (text.equals("Logout")) {
                     saveCourses();
                     saveResources();
+                    saveDeadlines();
+                    saveActivities();
                     dispose();
                     new Login();
                 } else {
@@ -218,65 +379,7 @@ public class Dashboard extends JFrame {
         return topPanel;
     }
 
-    private void showPage(String name) {
-        mainContentPanel.removeAll();
-        mainContentPanel.add(pages.get(name), BorderLayout.CENTER);
-        mainContentPanel.revalidate();
-        mainContentPanel.repaint();
-
-        if (name.equals("Dashboard")) {
-            updateDashboardData();
-        }
-    }
-
-    /*private JPanel createDashboardPanel() {
-        JPanel panel = new JPanel();
-        panel.setLayout(new BorderLayout());
-
-        JPanel statsPanel = new JPanel(new GridLayout(1, 3, 20, 20));
-        statsPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-
-        JLabel redPanel = createColorPanel("Courses: 0", new Color(255, 99, 71));
-        JLabel greenPanel = createColorPanel("Resources : 0", new Color(50, 205, 50));
-        JLabel bluePanel = createColorPanel("Last Reviewed: None", new Color(70, 130, 180));
-
-        statsPanel.add(redPanel);
-        statsPanel.add(greenPanel);
-        statsPanel.add(bluePanel);
-
-        JPanel lowerPanel = new JPanel(new GridLayout(1, 2, 20, 20));
-        lowerPanel.setBorder(BorderFactory.createEmptyBorder(0, 20, 20, 20));
-
-        dashboardMyCoursesArea = new JTextArea();
-        dashboardMyCoursesArea.setFont(new Font("Segoe UI", Font.PLAIN, 16));
-        dashboardMyCoursesArea.setEditable(false);
-        JPanel myCoursesPanel = new JPanel(new BorderLayout());
-        JLabel myCoursesTitle = new JLabel("My Courses");
-        myCoursesTitle.setFont(new Font("Segoe UI", Font.BOLD, 28)); // Larger font
-        myCoursesTitle.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-        myCoursesPanel.add(myCoursesTitle, BorderLayout.NORTH);
-        myCoursesPanel.add(new JScrollPane(dashboardMyCoursesArea), BorderLayout.CENTER);
-
-        dashboardResourcesDueArea = new JTextArea();
-        dashboardResourcesDueArea.setFont(new Font("Segoe UI", Font.PLAIN, 16));
-        dashboardResourcesDueArea.setEditable(false);
-        JPanel resourcesDuePanel = new JPanel(new BorderLayout());
-        JLabel resourcesDueTitle = new JLabel("Resources ");
-        resourcesDueTitle.setFont(new Font("Segoe UI", Font.BOLD, 28)); // Larger font
-        resourcesDueTitle.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-        resourcesDuePanel.add(resourcesDueTitle, BorderLayout.NORTH);
-        resourcesDuePanel.add(new JScrollPane(dashboardResourcesDueArea), BorderLayout.CENTER);
-
-        lowerPanel.add(myCoursesPanel);
-        lowerPanel.add(resourcesDuePanel);
-
-        panel.add(statsPanel, BorderLayout.NORTH);
-        panel.add(lowerPanel, BorderLayout.CENTER);
-
-        return panel;
-    }
-
-   private JLabel createColorPanel(String text, Color bgColor) {
+    private JLabel createColorPanel(String text, Color bgColor) {
         JLabel label = new JLabel(text, SwingConstants.CENTER);
         label.setOpaque(true);
         label.setBackground(bgColor);
@@ -284,7 +387,7 @@ public class Dashboard extends JFrame {
         label.setFont(new Font("Segoe UI", Font.BOLD, 20));
         label.setBorder(BorderFactory.createEmptyBorder(40, 10, 40, 10));
         return label;
-    }*/
+    }
 
     private JPanel createDashboardPanel() {
         JPanel panel = new JPanel();
@@ -356,20 +459,28 @@ public class Dashboard extends JFrame {
     }
 
     private JPanel createStatsPanel() {
+        studyResourcesProgress = new JProgressBar(0, 100);
+        studyResourcesProgress.setValue(0);
+        studyResourcesProgress.setStringPainted(false);
+        studyResourcesProgress.setBackground(new Color(240, 240, 240));
+        studyResourcesProgress.setForeground(new Color(33, 150, 243));  // blue accent or your choice
+        studyResourcesProgress.setPreferredSize(new Dimension(0, 8));
+        studyResourcesProgress.setBorderPainted(false);
+
         JPanel statsPanel = new JPanel(new GridLayout(1, 4, 20, 0));
         statsPanel.setBackground(new Color(245, 247, 250));
 
         // Course Stats Card
-        JPanel coursesCard = createStatCard("📚", "Total Courses", "0", new Color(76, 175, 80), 75);
+        JPanel coursesCard = createStatCard("📚", "Total Courses", "0", new Color(76, 175, 80), 0);
 
         // Resources Stats Card
-        JPanel resourcesCard = createStatCard("📄", "Study Resources", "0", new Color(33, 150, 243), 60);
+        JPanel resourcesCard = createStatCard("📄", "Study Resources", "0", new Color(33, 150, 243), 0);
 
         // Assessments Stats Card
-        JPanel assessmentsCard = createStatCard("📝", "Due This Week", "0", new Color(255, 152, 0), 40);
+        JPanel assessmentsCard = createStatCard("📝", "Due This Week", "0", new Color(255, 152, 0), 0);
 
-        // Progress Stats Card
-        JPanel progressCard = createStatCard("⭐", "Completion Rate", "87%", new Color(156, 39, 176), 87);
+        // Progress Stats Card - Completion Rate
+        JPanel progressCard = createStatCard("⭐", "Completion Rate", "0%", new Color(156, 39, 176), 0); // Initial 0%
 
         statsPanel.add(coursesCard);
         statsPanel.add(resourcesCard);
@@ -380,21 +491,21 @@ public class Dashboard extends JFrame {
     }
 
     private JPanel createStatCard(String icon, String label, String value, Color accentColor, int progressValue) {
-        JPanel card = new JPanel();
-        card.setLayout(new BorderLayout());
-        card.setBackground(Color.WHITE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(230, 230, 230), 1),
-                BorderFactory.createEmptyBorder(20, 20, 20, 20)
-        ));
+        totalCoursesProgress = new JProgressBar(0, 100);
+        totalCoursesProgress.setValue(0);
+        totalCoursesProgress.setStringPainted(false);
+        totalCoursesProgress.setBackground(new Color(240, 240, 240));
+        totalCoursesProgress.setForeground(new Color(76, 175, 80));  // Adjust color as desired
+        totalCoursesProgress.setPreferredSize(new Dimension(0, 8));
+        totalCoursesProgress.setBorderPainted(false);
 
-        // Add rounded corners effect
+        JPanel card = new JPanel(new BorderLayout());
+        card.setBackground(Color.WHITE);
         card.setBorder(BorderFactory.createCompoundBorder(
                 new RoundedBorder(15, new Color(230, 230, 230)),
                 BorderFactory.createEmptyBorder(20, 20, 20, 20)
         ));
 
-        // Header with icon and value
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setBackground(Color.WHITE);
 
@@ -407,34 +518,63 @@ public class Dashboard extends JFrame {
         valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 32));
         valueLabel.setForeground(new Color(51, 51, 51));
 
+        // Save references for dynamic updates
+        if (label.equals("Total Courses")) {
+            totalCoursesValue = valueLabel;
+        } else if (label.equals("Study Resources")) {
+            studyResourcesValue = valueLabel;
+        } else if (label.equals("Due This Week")) {
+            dueThisWeekValue = valueLabel;
+            dueThisWeekProgress = new JProgressBar(0,100);
+            dueThisWeekProgress.setValue(progressValue);
+            dueThisWeekProgress.setStringPainted(false);
+            dueThisWeekProgress.setBackground(new Color(240, 240, 240));
+            dueThisWeekProgress.setForeground(accentColor);
+            dueThisWeekProgress.setPreferredSize(new Dimension(0, 8));
+            dueThisWeekProgress.setBorderPainted(false);
+        } else if (label.equals("Completion Rate")) {
+            progressCardValueLabel = valueLabel;
+            progressCardProgressBar = new JProgressBar(0, 100);
+            progressCardProgressBar.setValue(progressValue);
+            progressCardProgressBar.setStringPainted(false);
+            progressCardProgressBar.setBackground(new Color(240, 240, 240));
+            progressCardProgressBar.setForeground(accentColor);
+            progressCardProgressBar.setPreferredSize(new Dimension(0, 8));
+            progressCardProgressBar.setBorderPainted(false);
+        }
+
         headerPanel.add(iconLabel, BorderLayout.WEST);
         headerPanel.add(valueLabel, BorderLayout.CENTER);
 
-        // Label
         JLabel labelText = new JLabel(label);
         labelText.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         labelText.setForeground(new Color(102, 102, 102));
 
-        // Progress bar
         JPanel progressPanel = new JPanel(new BorderLayout());
         progressPanel.setBackground(Color.WHITE);
         progressPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
 
-        JProgressBar progressBar = new JProgressBar(0, 100);
-        progressBar.setValue(progressValue);
-        progressBar.setStringPainted(false);
-        progressBar.setBackground(new Color(240, 240, 240));
-        progressBar.setForeground(accentColor);
-        progressBar.setPreferredSize(new Dimension(0, 8));
-        progressBar.setBorderPainted(false);
-
-        progressPanel.add(progressBar, BorderLayout.CENTER);
+        // Add the progress bar depending on label
+        if (label.equals("Due This Week") && dueThisWeekProgress != null) {
+            progressPanel.add(dueThisWeekProgress, BorderLayout.CENTER);
+        } else if (label.equals("Completion Rate") && progressCardProgressBar != null) {
+            progressPanel.add(progressCardProgressBar, BorderLayout.CENTER);
+        } else {
+            JProgressBar pb = new JProgressBar(0, 100);
+            pb.setValue(progressValue);
+            pb.setStringPainted(false);
+            pb.setBackground(new Color(240, 240, 240));
+            pb.setForeground(accentColor);
+            pb.setPreferredSize(new Dimension(0, 8));
+            pb.setBorderPainted(false);
+            progressPanel.add(pb, BorderLayout.CENTER);
+        }
 
         card.add(headerPanel, BorderLayout.NORTH);
         card.add(labelText, BorderLayout.CENTER);
         card.add(progressPanel, BorderLayout.SOUTH);
 
-        // Add hover effect
+        // Hover effect
         card.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseEntered(MouseEvent e) {
@@ -449,6 +589,7 @@ public class Dashboard extends JFrame {
 
         return card;
     }
+
 
     private JPanel createQuickActionsPanel() {
         JPanel quickActions = new JPanel(new BorderLayout());
@@ -468,25 +609,91 @@ public class Dashboard extends JFrame {
 
         JButton addCourseBtn = createQuickActionButton("➕ Add Course");
         JButton addResourceBtn = createQuickActionButton("📎 Add Resource");
-        JButton addAssessmentBtn = createQuickActionButton("📝 Add Assessment");
-        JButton viewCalendarBtn = createQuickActionButton("📅 View Calendar");
+        JButton addDeadlineBtn = createQuickActionButton("📝 Add Deadline");
+        JButton addActivityBtn = createQuickActionButton("📈 Add Activity");
 
         // Add action listeners
         addCourseBtn.addActionListener(e -> showPage("Courses"));
         addResourceBtn.addActionListener(e -> showPage("Courses"));
-        addAssessmentBtn.addActionListener(e -> showPage("Assessments"));
-        viewCalendarBtn.addActionListener(e -> showPage("Calendar"));
+        addDeadlineBtn.addActionListener(e -> showAddDeadlineDialog());
+        addActivityBtn.addActionListener(e -> showAddActivityDialog());
 
         buttonsPanel.add(addCourseBtn);
         buttonsPanel.add(addResourceBtn);
-        buttonsPanel.add(addAssessmentBtn);
-        buttonsPanel.add(viewCalendarBtn);
+        buttonsPanel.add(addDeadlineBtn);
+        buttonsPanel.add(addActivityBtn);
 
         contentPanel.add(titleLabel, BorderLayout.NORTH);
         contentPanel.add(buttonsPanel, BorderLayout.CENTER);
 
         quickActions.add(contentPanel);
         return quickActions;
+    }
+
+    private void showAddDeadlineDialog() {
+        JPanel panel = new JPanel(new GridLayout(4, 2, 10, 10));
+        JTextField titleField = new JTextField();
+        JTextField dueDateField = new JTextField("YYYY-MM-DD");
+        String[] types = {"📝 Assignment", "📊 Quiz", "💻 Project", "📋 Exam"};
+        JComboBox<String> typeCombo = new JComboBox<>(types);
+        JCheckBox urgentCheck = new JCheckBox("Urgent");
+
+        panel.add(new JLabel("Title:"));
+        panel.add(titleField);
+        panel.add(new JLabel("Due Date:"));
+        panel.add(dueDateField);
+        panel.add(new JLabel("Type:"));
+        panel.add(typeCombo);
+        panel.add(new JLabel("Urgent:"));
+        panel.add(urgentCheck);
+
+        int result = JOptionPane.showConfirmDialog(this, panel, "Add Deadline", JOptionPane.OK_CANCEL_OPTION);
+        if (result == JOptionPane.OK_OPTION) {
+            String title = titleField.getText().trim();
+            String dueDate = dueDateField.getText().trim();
+            String type = typeCombo.getSelectedItem().toString();
+            boolean urgent = urgentCheck.isSelected();
+
+            if (!title.isEmpty() && !dueDate.isEmpty()) {
+                deadlines.add(new Deadline(title, dueDate, type, urgent));
+                saveDeadlines();
+                updateDashboardData();
+                refreshDeadlinesPanel();
+            }
+        }
+    }
+
+    private void showAddActivityDialog() {
+        JPanel panel = new JPanel(new GridLayout(4, 2, 10, 10));
+        JTextField descField = new JTextField();
+        JTextField timeField = new JTextField("Just now");
+        String[] icons = {"+", "✓", "✏", "📚", "🎯", "💡"};
+        JComboBox<String> iconCombo = new JComboBox<>(icons);
+        String[] colors = {"76,175,80", "156,39,176", "33,150,243", "255,152,0", "244,67,54", "96,125,139"};
+        JComboBox<String> colorCombo = new JComboBox<>(new String[]{"Green", "Purple", "Blue", "Orange", "Red", "Gray"});
+
+        panel.add(new JLabel("Description:"));
+        panel.add(descField);
+        panel.add(new JLabel("Time:"));
+        panel.add(timeField);
+        panel.add(new JLabel("Icon:"));
+        panel.add(iconCombo);
+        panel.add(new JLabel("Color:"));
+        panel.add(colorCombo);
+
+        int result = JOptionPane.showConfirmDialog(this, panel, "Add Activity", JOptionPane.OK_CANCEL_OPTION);
+        if (result == JOptionPane.OK_OPTION) {
+            String description = descField.getText().trim();
+            String time = timeField.getText().trim();
+            String icon = iconCombo.getSelectedItem().toString();
+            String color = colors[colorCombo.getSelectedIndex()];
+
+            if (!description.isEmpty()) {
+                activities.add(new Activity(description, time, icon, color));
+                saveActivities();
+                refreshActivityPanel();
+            }
+        }
     }
 
     private JButton createQuickActionButton(String text) {
@@ -553,6 +760,19 @@ public class Dashboard extends JFrame {
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
         titleLabel.setForeground(new Color(51, 51, 51));
 
+        // Add management buttons for deadlines and activities
+        if (title.contains("Deadlines")) {
+            JButton manageBtn = new JButton("Manage");
+            manageBtn.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            manageBtn.addActionListener(e -> showManageDeadlinesDialog());
+            headerPanel.add(manageBtn, BorderLayout.EAST);
+        } else if (title.contains("Activity")) {
+            JButton manageBtn = new JButton("Manage");
+            manageBtn.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            manageBtn.addActionListener(e -> showManageActivitiesDialog());
+            headerPanel.add(manageBtn, BorderLayout.EAST);
+        }
+
         headerPanel.add(titleLabel, BorderLayout.WEST);
 
         JPanel contentPanel = new JPanel(new BorderLayout());
@@ -564,6 +784,75 @@ public class Dashboard extends JFrame {
         card.add(contentPanel, BorderLayout.CENTER);
 
         return card;
+    }
+
+    private void showManageDeadlinesDialog() {
+        JDialog dialog = new JDialog(this, "Manage Deadlines", true);
+        dialog.setLayout(new BorderLayout());
+
+        DefaultListModel<String> listModel = new DefaultListModel<>();
+        for (Deadline deadline : deadlines) {
+            listModel.addElement(deadline.title + " - Due: " + deadline.dueDate);
+        }
+
+        JList<String> list = new JList<>(listModel);
+        JScrollPane scrollPane = new JScrollPane(list);
+        scrollPane.setPreferredSize(new Dimension(400, 300));
+
+        JPanel buttonPanel = new JPanel(new FlowLayout());
+        JButton deleteBtn = new JButton("Delete Selected");
+        deleteBtn.addActionListener(e -> {
+            int selectedIndex = list.getSelectedIndex();
+            if (selectedIndex >= 0) {
+                deadlines.remove(selectedIndex);
+                listModel.remove(selectedIndex);
+                saveDeadlines();
+                updateDashboardData();
+                refreshDeadlinesPanel();
+            }
+        });
+
+        buttonPanel.add(deleteBtn);
+
+        dialog.add(scrollPane, BorderLayout.CENTER);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
+        dialog.pack();
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+    }
+
+    private void showManageActivitiesDialog() {
+        JDialog dialog = new JDialog(this, "Manage Activities", true);
+        dialog.setLayout(new BorderLayout());
+
+        DefaultListModel<String> listModel = new DefaultListModel<>();
+        for (Activity activity : activities) {
+            listModel.addElement(activity.description + " - " + activity.time);
+        }
+
+        JList<String> list = new JList<>(listModel);
+        JScrollPane scrollPane = new JScrollPane(list);
+        scrollPane.setPreferredSize(new Dimension(400, 300));
+
+        JPanel buttonPanel = new JPanel(new FlowLayout());
+        JButton deleteBtn = new JButton("Delete Selected");
+        deleteBtn.addActionListener(e -> {
+            int selectedIndex = list.getSelectedIndex();
+            if (selectedIndex >= 0) {
+                activities.remove(selectedIndex);
+                listModel.remove(selectedIndex);
+                saveActivities();
+                refreshActivityPanel();
+            }
+        });
+
+        buttonPanel.add(deleteBtn);
+
+        dialog.add(scrollPane, BorderLayout.CENTER);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
+        dialog.pack();
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
     }
 
     private JPanel createCoursesListPanel() {
@@ -591,23 +880,47 @@ public class Dashboard extends JFrame {
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBackground(Color.WHITE);
 
-        // Sample upcoming deadlines
-        panel.add(createDeadlineItem("Machine Learning Assignment", "Due in 2 days", "📝", true));
-        panel.add(Box.createRigidArea(new Dimension(0, 8)));
-        panel.add(createDeadlineItem("Database Quiz", "Due in 3 days", "📊", true));
-        panel.add(Box.createRigidArea(new Dimension(0, 8)));
-        panel.add(createDeadlineItem("Software Engineering Project", "Due in 1 week", "💻", false));
+        deadlinesContentPanel = new JPanel();
+        deadlinesContentPanel.setLayout(new BoxLayout(deadlinesContentPanel, BoxLayout.Y_AXIS));
+        deadlinesContentPanel.setBackground(Color.WHITE);
 
+        JScrollPane scrollPane = new JScrollPane(deadlinesContentPanel);
+        scrollPane.setBorder(null);
+        scrollPane.setPreferredSize(new Dimension(0, 200));
+        scrollPane.setBackground(Color.WHITE);
+
+        panel.add(scrollPane);
+        refreshDeadlinesPanel();
         return panel;
     }
 
-    private JPanel createDeadlineItem(String title, String dueDate, String icon, boolean urgent) {
+    private void refreshDeadlinesPanel() {
+        if (deadlinesContentPanel != null) {
+            deadlinesContentPanel.removeAll();
+
+            if (deadlines.isEmpty()) {
+                JLabel noDeadlinesLabel = new JLabel("No upcoming deadlines");
+                noDeadlinesLabel.setFont(new Font("Segoe UI", Font.ITALIC, 14));
+                noDeadlinesLabel.setForeground(new Color(136, 136, 136));
+                deadlinesContentPanel.add(noDeadlinesLabel);
+            } else {
+                for (int i = 0; i < Math.min(deadlines.size(), 5); i++) { // Show only first 5
+                    Deadline deadline = deadlines.get(i);
+                    deadlinesContentPanel.add(createDeadlineItem(deadline.title, deadline.dueDate, deadline.type, deadline.urgent));
+                    if (i < Math.min(deadlines.size(), 5) - 1) {
+                        deadlinesContentPanel.add(Box.createRigidArea(new Dimension(0, 8)));
+                    }
+                }
+            }
+
+            deadlinesContentPanel.revalidate();
+            deadlinesContentPanel.repaint();
+        }
+    }
+
+    private JPanel createDeadlineItem(String title, String dueDate, String type, boolean urgent) {
         JPanel item = new JPanel(new BorderLayout());
         item.setBackground(urgent ? new Color(255, 235, 238) : new Color(241, 248, 233));
-        item.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(urgent ? new Color(244, 67, 54) : new Color(76, 175, 80), 0, true),
-                BorderFactory.createEmptyBorder(12, 15, 12, 15)
-        ));
 
         // Set left border
         item.setBorder(BorderFactory.createCompoundBorder(
@@ -622,15 +935,15 @@ public class Dashboard extends JFrame {
         JPanel metaPanel = new JPanel(new BorderLayout());
         metaPanel.setBackground(item.getBackground());
 
-        JLabel dueDateLabel = new JLabel(dueDate);
+        JLabel dueDateLabel = new JLabel("Due: " + dueDate);
         dueDateLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         dueDateLabel.setForeground(new Color(102, 102, 102));
 
-        JLabel iconLabel = new JLabel(icon);
-        iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 14));
+        JLabel typeLabel = new JLabel(type);
+        typeLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 14));
 
         metaPanel.add(dueDateLabel, BorderLayout.WEST);
-        metaPanel.add(iconLabel, BorderLayout.EAST);
+        metaPanel.add(typeLabel, BorderLayout.EAST);
 
         JPanel contentPanel = new JPanel();
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
@@ -648,16 +961,48 @@ public class Dashboard extends JFrame {
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBackground(Color.WHITE);
 
-        // Sample activities
-        panel.add(createActivityItem("Added new resource: Python Tutorial", "2 hours ago", "+", new Color(76, 175, 80)));
-        panel.add(Box.createRigidArea(new Dimension(0, 8)));
-        panel.add(createActivityItem("Completed: Data Structures Quiz", "Yesterday", "✓", new Color(156, 39, 176)));
-        panel.add(Box.createRigidArea(new Dimension(0, 8)));
-        panel.add(createActivityItem("Updated course: Machine Learning", "2 days ago", "✏", new Color(33, 150, 243)));
-        panel.add(Box.createRigidArea(new Dimension(0, 8)));
-        panel.add(createActivityItem("Added new course: Web Development", "3 days ago", "+", new Color(76, 175, 80)));
+        activityContentPanel = new JPanel();
+        activityContentPanel.setLayout(new BoxLayout(activityContentPanel, BoxLayout.Y_AXIS));
+        activityContentPanel.setBackground(Color.WHITE);
 
+        JScrollPane scrollPane = new JScrollPane(activityContentPanel);
+        scrollPane.setBorder(null);
+        scrollPane.setPreferredSize(new Dimension(0, 200));
+        scrollPane.setBackground(Color.WHITE);
+
+        panel.add(scrollPane);
+        refreshActivityPanel();
         return panel;
+    }
+
+    private void refreshActivityPanel() {
+        if (activityContentPanel != null) {
+            activityContentPanel.removeAll();
+
+            if (activities.isEmpty()) {
+                JLabel noActivityLabel = new JLabel("No recent activities");
+                noActivityLabel.setFont(new Font("Segoe UI", Font.ITALIC, 14));
+                noActivityLabel.setForeground(new Color(136, 136, 136));
+                activityContentPanel.add(noActivityLabel);
+            } else {
+                for (int i = 0; i < Math.min(activities.size(), 6); i++) { // Show only first 6
+                    Activity activity = activities.get(i);
+                    String[] colorParts = activity.color.split(",");
+                    Color iconColor = new Color(
+                            Integer.parseInt(colorParts[0]),
+                            Integer.parseInt(colorParts[1]),
+                            Integer.parseInt(colorParts[2])
+                    );
+                    activityContentPanel.add(createActivityItem(activity.description, activity.time, activity.icon, iconColor));
+                    if (i < Math.min(activities.size(), 6) - 1) {
+                        activityContentPanel.add(Box.createRigidArea(new Dimension(0, 8)));
+                    }
+                }
+            }
+
+            activityContentPanel.revalidate();
+            activityContentPanel.repaint();
+        }
     }
 
     private JPanel createActivityItem(String title, String time, String icon, Color iconColor) {
@@ -748,68 +1093,80 @@ public class Dashboard extends JFrame {
     }
 
     private void updateDashboardData() {
-        // Update stats cards
-        updateStatCard(0, "Total Courses", String.valueOf(courseListModel.getSize()));
+        // Update courses count
+        int courseCount = courseListModel.getSize();
+        if (totalCoursesValue != null) {
+            totalCoursesValue.setText(String.valueOf(courseCount));
+            totalCoursesProgress.setValue(Math.min(courseCount * 20, 100)); // Max 5 courses for 100%
+        }
 
+        // Update resources count
         int totalResources = courseResourcesMap.values().stream().mapToInt(DefaultListModel::getSize).sum();
-        updateStatCard(1, "Study Resources", String.valueOf(totalResources));
+        if (studyResourcesValue != null) {
+            studyResourcesValue.setText(String.valueOf(totalResources));
+            studyResourcesProgress.setValue(Math.min(totalResources * 10, 100)); // Max 10 resources for 100%
+        }
 
-        // Count due assessments (you can implement this based on your assessment data)
-        updateStatCard(2, "Due This Week", "3");
+        // Calculate deadlines due this week
+        int weeklyDeadlines = calculateWeeklyDeadlines();
+        if (dueThisWeekValue != null) {
+            dueThisWeekValue.setText(String.valueOf(weeklyDeadlines));
+            dueThisWeekProgress.setValue(Math.min(weeklyDeadlines * 25, 100)); // Max 4 deadlines for 100%
+        }
 
         // Update courses text area
         StringBuilder coursesText = new StringBuilder();
-        for (int i = 0; i < courseListModel.size(); i++) {
-            coursesText.append("• ").append(courseListModel.get(i)).append("\n");
+        if (courseListModel.isEmpty()) {
+            coursesText.append("No courses added yet. Click 'Add Course' to get started!");
+        } else {
+            for (int i = 0; i < courseListModel.size(); i++) {
+                coursesText.append("• ").append(courseListModel.get(i)).append("\n");
+            }
         }
         dashboardMyCoursesArea.setText(coursesText.toString());
 
         // Update resources text area
         StringBuilder resourcesText = new StringBuilder();
-        for (String course : courseResourcesMap.keySet()) {
-            DefaultListModel<Resource> resources = courseResourcesMap.get(course);
-            for (int i = 0; i < resources.size(); i++) {
-                resourcesText.append("• ").append(resources.get(i).toString()).append("\n");
+        if (totalResources == 0) {
+            resourcesText.append("No resources added yet. Add courses and resources to see them here!");
+        } else {
+            int count = 0;
+            for (String course : courseResourcesMap.keySet()) {
+                DefaultListModel<Resource> resources = courseResourcesMap.get(course);
+                for (int i = 0; i < resources.size() && count < 10; i++, count++) { // Show max 10 resources
+                    resourcesText.append("• ").append(resources.get(i).toString())
+                            .append(" (").append(course).append(")").append("\n");
+                }
+                if (count >= 10) break;
             }
         }
         dashboardResourcesDueArea.setText(resourcesText.toString());
+
+        // Refresh dynamic panels
+        refreshDeadlinesPanel();
+        refreshActivityPanel();
     }
 
-    private void updateStatCard(int cardIndex, String label, String value) {
-        // This method would update the stat cards with real data
-        // Implementation depends on how you store references to the stat cards
-        // You might want to store them in instance variables for easy access
-    }
+    private int calculateWeeklyDeadlines() {
+        LocalDate today = LocalDate.now();
+        LocalDate weekEnd = today.plusDays(7);
 
+        int weeklyCount = 0;
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    /*private void updateDashboardData() {
-        JLabel coursesLabel = (JLabel)((JPanel)((JPanel)pages.get("Dashboard")).getComponent(0)).getComponent(0);
-        coursesLabel.setText("Courses: " + courseListModel.getSize());
-
-        int totalResources = courseResourcesMap.values().stream().mapToInt(DefaultListModel::getSize).sum();
-        JLabel resourcesLabel = (JLabel)((JPanel)((JPanel)pages.get("Dashboard")).getComponent(0)).getComponent(1);
-        resourcesLabel.setText("Resources : " + totalResources);
-
-        JLabel lastReviewLabel = (JLabel)((JPanel)((JPanel)pages.get("Dashboard")).getComponent(0)).getComponent(2);
-        lastReviewLabel.setText("Last Reviewed: Today");
-
-        StringBuilder coursesText = new StringBuilder();
-        for (int i = 0; i < courseListModel.size(); i++) {
-            coursesText.append("- ").append(courseListModel.get(i)).append("\n");
-        }
-        dashboardMyCoursesArea.setText(coursesText.toString());
-
-        StringBuilder resourcesText = new StringBuilder();
-        for (String course : courseResourcesMap.keySet()) {
-            DefaultListModel<Resource> resources = courseResourcesMap.get(course);
-            for (int i = 0; i < resources.size(); i++) {
-                resourcesText.append("- ").append(resources.get(i).toString()).append("\n");
+        for (Deadline deadline : deadlines) {
+            try {
+                LocalDate dueDate = LocalDate.parse(deadline.dueDate, formatter);
+                if (!dueDate.isBefore(today) && !dueDate.isAfter(weekEnd)) {
+                    weeklyCount++;
+                }
+            } catch (DateTimeParseException e) {
+                // Skip invalid dates
             }
         }
-        dashboardResourcesDueArea.setText(resourcesText.toString());
-    }*/
 
-
+        return weeklyCount;
+    }
 
     private JPanel createCoursesPanel() {
         JPanel panel = new JPanel(new BorderLayout(10,10));
@@ -921,6 +1278,10 @@ public class Dashboard extends JFrame {
                 saveCourses();
                 saveResources();
                 updateDashboardData();
+
+                // Add activity for course addition
+                activities.add(0, new Activity("Added new course: " + newCourse.trim(), "Just now", "+", "76,175,80"));
+                saveActivities();
             }
         });
 
@@ -945,6 +1306,10 @@ public class Dashboard extends JFrame {
                 saveCourses();
                 saveResources();
                 updateDashboardData();
+
+                // Add activity for course edit
+                activities.add(0, new Activity("Updated course: " + newName.trim(), "Just now", "✏", "33,150,243"));
+                saveActivities();
             }
         });
 
@@ -962,6 +1327,10 @@ public class Dashboard extends JFrame {
                 saveCourses();
                 saveResources();
                 updateDashboardData();
+
+                // Add activity for course deletion
+                activities.add(0, new Activity("Deleted course: " + selectedCourse, "Just now", "✓", "244,67,54"));
+                saveActivities();
             }
         });
 
@@ -1003,6 +1372,10 @@ public class Dashboard extends JFrame {
 
                 saveResources();
                 updateDashboardData();
+
+                // Add activity for resource addition
+                activities.add(0, new Activity("Added new resource: " + rName, "Just now", "+", "76,175,80"));
+                saveActivities();
             }
         });
 
@@ -1019,7 +1392,11 @@ public class Dashboard extends JFrame {
                 resources.removeElement(selectedResource);
                 resourcesModel.removeElement(selectedResource);
                 saveResources();
-               updateDashboardData();
+                updateDashboardData();
+
+                // Add activity for resource deletion
+                activities.add(0, new Activity("Deleted resource: " + selectedResource.name, "Just now", "✓", "244,67,54"));
+                saveActivities();
             }
         });
 
@@ -1059,35 +1436,6 @@ public class Dashboard extends JFrame {
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Failed to open resource: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
-    }
-
-
-    private void saveAssessmentsToFile(List<String[]> assessments) {
-        try (PrintWriter writer = new PrintWriter("assessments.txt")) {
-            for (String[] data : assessments) {
-                writer.println(data[0] + "|" + data[1] + "|" + data[2] + "|" + data[3]);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private List<String[]> loadAssessmentsFromFile() {
-        List<String[]> assessments = new ArrayList<>();
-        File file = new File("assessments.txt");
-        if (file.exists()) {
-            try (Scanner scanner = new Scanner(file)) {
-                while (scanner.hasNextLine()) {
-                    String[] parts = scanner.nextLine().split("\\|");
-                    if (parts.length == 4) {
-                        assessments.add(parts);
-                    }
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-        return assessments;
     }
 
     private void updateCalendar(JPanel calendarGrid, JLabel monthLabel, Map<LocalDate, List<String[]>> events) {
@@ -1152,46 +1500,6 @@ public class Dashboard extends JFrame {
         calendarGrid.repaint();
     }
 
-
-    private void saveEvents(Map<LocalDate, List<String[]>> events) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter("data/events.txt"))) {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
-            for (Map.Entry<LocalDate, List<String[]>> entry : events.entrySet()) {
-                for (String[] evt : entry.getValue()) {
-                    writer.write(formatter.format(entry.getKey()) + "," + evt[0] + "," + evt[1]);
-                    writer.newLine();
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private Map<LocalDate, List<String[]>> loadEvents() {
-        Map<LocalDate, List<String[]>> events = new HashMap<>();
-        File file = new File("data/events.txt");
-        if (!file.exists()) return events;
-
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(",", 3);
-                if (parts.length == 3) {
-                    LocalDate date = LocalDate.parse(parts[0], formatter);
-                    String title = parts[1];
-                    String type = parts[2];
-                    events.computeIfAbsent(date, k -> new ArrayList<>()).add(new String[]{title, type});
-                }
-            }
-        } catch (IOException | DateTimeParseException e) {
-            e.printStackTrace();
-        }
-        return events;
-    }
-
-
     // --- Placeholder panels for other pages ---
     private JPanel createAssessmentsPanel() {
         JPanel panel = new JPanel(new BorderLayout(20, 20));
@@ -1201,83 +1509,201 @@ public class Dashboard extends JFrame {
         title.setFont(new Font("Segoe UI", Font.BOLD, 34));
         panel.add(title, BorderLayout.NORTH);
 
-        DefaultListModel<String> assessmentModel = new DefaultListModel<>();
-        JList<String> assessmentList = new JList<>(assessmentModel);
+        assessmentListModel = new DefaultListModel<>();
+        assessmentList = new JList<>(assessmentListModel);
         assessmentList.setFont(new Font("Segoe UI", Font.BOLD, 22));
         JScrollPane scrollPane = new JScrollPane(assessmentList);
 
-        // Load assessments from file on startup
-        List<String[]> assessmentDataList = loadAssessmentsFromFile();
-        for (String[] a : assessmentDataList) {
-            assessmentModel.addElement("\u2022 " + a[0] + " | " + a[1] + " | Due: " + a[2] + " | Status: " + a[3]);
-        }
+        // Load assessments from file
+        assessmentDataList = loadAssessmentsFromFile();
+        refreshAssessmentStatuses(); // update statuses and list model
 
-        JPanel formPanel = new JPanel(new GridLayout(5, 2, 10, 10));
-
-        JLabel label1 = new JLabel("Assessment Title:");
-        label1.setFont(new Font("Segoe UI", Font.BOLD, 20));
-        JTextField nameField = new JTextField();
-        nameField.setFont(new Font("Segoe UI", Font.BOLD, 20));
-
-        JLabel label2 = new JLabel("Related Course:");
-        label2.setFont(new Font("Segoe UI", Font.BOLD, 20));
-        JTextField courseField = new JTextField();
-        courseField.setFont(new Font("Segoe UI", Font.BOLD, 20));
-
-        JLabel label3 = new JLabel("Due Date:");
-        label3.setFont(new Font("Segoe UI", Font.BOLD, 20));
-        JTextField dueDateField = new JTextField();
-        dueDateField.setFont(new Font("Segoe UI", Font.BOLD, 20));
-
-        JLabel statusLabel = new JLabel("Status:");
-        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
-        String[] statuses = {"Pending", "In Progress", "Completed"};
-        JComboBox<String> statusBox = new JComboBox<>(statuses);
-        statusBox.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 30, 10));
 
         JButton addBtn = new JButton("Add Assessment");
         addBtn.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        addBtn.setBackground(new Color(100, 149, 237));
+        addBtn.setBackground(new Color(40, 167, 69));
         addBtn.setForeground(Color.WHITE);
 
+        JButton deleteBtn = new JButton("Delete Selected");
+        deleteBtn.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        deleteBtn.setBackground(new Color(220, 53, 69));
+        deleteBtn.setForeground(Color.WHITE);
+
+        buttonsPanel.add(addBtn);
+        buttonsPanel.add(deleteBtn);
+
+        panel.add(scrollPane, BorderLayout.CENTER);
+        panel.add(buttonsPanel, BorderLayout.SOUTH);
+
+        // Add Assessment action
         addBtn.addActionListener(e -> {
-            String titleText = nameField.getText().trim();
-            String courseText = courseField.getText().trim();
-            String dueText = dueDateField.getText().trim();
-            String statusText = (String) statusBox.getSelectedItem();
+            JTextField titleField = new JTextField();
+            JTextField courseField = new JTextField();
+            JTextField dueDateField = new JTextField("yyyy-MM-dd");
 
-            if (!titleText.isEmpty() && !courseText.isEmpty() && !dueText.isEmpty()) {
-                String entry = "\u2022 " + titleText + " | " + courseText + " | Due: " + dueText + " | Status: " + statusText;
-                assessmentModel.addElement(entry);
+            Object[] form = {
+                    "Assessment Title:", titleField,
+                    "Related Course:", courseField,
+                    "Due Date (yyyy-MM-dd):", dueDateField
+            };
 
-                // Save new assessment to list and file
-                assessmentDataList.add(new String[]{titleText, courseText, dueText, statusText});
+            int result = JOptionPane.showConfirmDialog(panel, form, "Add New Assessment", JOptionPane.OK_CANCEL_OPTION);
+            if (result == JOptionPane.OK_OPTION) {
+                String t = titleField.getText().trim();
+                String c = courseField.getText().trim();
+                String d = dueDateField.getText().trim();
+
+                if (t.isEmpty() || c.isEmpty() || d.isEmpty()) {
+                    JOptionPane.showMessageDialog(panel, "All fields are required!", "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+
+                LocalDate dueDate;
+                try {
+                    dueDate = LocalDate.parse(d, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+                } catch (DateTimeParseException ex) {
+                    JOptionPane.showMessageDialog(panel, "Invalid date format! Use yyyy-MM-dd.", "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+
+                String status = "Pending"; // default, will be refreshed
+                String[] newAssessment = new String[] {t, c, d, status};
+                assessmentDataList.add(newAssessment);
+
                 saveAssessmentsToFile(assessmentDataList);
 
-                nameField.setText("");
-                courseField.setText("");
-                dueDateField.setText("");
+                // Sync with calendar events
+                events.computeIfAbsent(dueDate, k -> new ArrayList<>()).add(new String[]{t, "Assessment"});
+                saveEvents(events);
+
+                refreshAssessmentStatuses();
+                updateDashboardCompletionRate();
+                updateCalendar(calendarGridPanel, calendarMonthLabel, events);
             }
         });
 
-        formPanel.add(label1);
-        formPanel.add(nameField);
-        formPanel.add(label2);
-        formPanel.add(courseField);
-        formPanel.add(label3);
-        formPanel.add(dueDateField);
-        formPanel.add(statusLabel);
-        formPanel.add(statusBox);
-        formPanel.add(new JLabel());
-        formPanel.add(addBtn);
+        // Delete Assessment action
+        deleteBtn.addActionListener(e -> {
+            int idx = assessmentList.getSelectedIndex();
+            if (idx >= 0 && idx < assessmentDataList.size()) {
+                String[] removed = assessmentDataList.remove(idx);
 
-        panel.add(formPanel, BorderLayout.CENTER);
-        panel.add(scrollPane, BorderLayout.SOUTH);
+                // Remove event from calendar
+                try {
+                    LocalDate dueDate = LocalDate.parse(removed[2], DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+                    List<String[]> dayEvents = events.get(dueDate);
+                    if (dayEvents != null) {
+                        dayEvents.removeIf(ev -> ev[0].equals(removed[0]) && "Assessment".equalsIgnoreCase(ev[1]));
+                        if (dayEvents.isEmpty()) {
+                            events.remove(dueDate);
+                        }
+                        saveEvents(events);
+                    }
+                } catch (DateTimeParseException ignored) { }
+
+                saveAssessmentsToFile(assessmentDataList);
+                refreshAssessmentStatuses();
+                updateDashboardCompletionRate();
+                updateCalendar(calendarGridPanel, calendarMonthLabel, events);
+            } else {
+                JOptionPane.showMessageDialog(panel, "Select an assessment to delete!", "Warning", JOptionPane.WARNING_MESSAGE);
+            }
+        });
 
         return panel;
     }
 
+    private void refreshAssessmentStatuses() {
+        LocalDate today = LocalDate.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
+        assessmentListModel.clear();
+
+        int dueThisWeekCount = 0;
+
+        for (int i = 0; i < assessmentDataList.size(); i++) {
+            String[] a = assessmentDataList.get(i);
+            try {
+                LocalDate dueDate = LocalDate.parse(a[2], formatter);
+
+                // Update status based on due date
+                if (dueDate.isBefore(today)) {
+                    a[3] = "Completed";
+                } else if (dueDate.isEqual(today)) {
+                    a[3] = "In Progress";
+                    notifyAssessmentDue(a);
+                } else {
+                    a[3] = "Pending";
+                    if (dueDate.equals(today.plusDays(1))) {
+                        notifyAssessmentDueSoon(a);
+                    }
+                }
+
+                // Count for Due This Week Stat card
+                if (!dueDate.isBefore(today) && !dueDate.isAfter(today.plusDays(7))) {
+                    dueThisWeekCount++;
+                }
+
+                assessmentListModel.addElement("• " + a[0] + " | " + a[1] + " | Due: " + a[2] + " | Status: " + a[3]);
+
+            } catch (DateTimeParseException ignored) {
+                assessmentListModel.addElement("• " + a[0] + " | " + a[1] + " | Due: " + a[2] + " | Status: " + a[3]);
+            }
+        }
+
+        // Update due this week stat card
+        if (dueThisWeekValue != null && dueThisWeekProgress != null) {
+            dueThisWeekValue.setText(String.valueOf(dueThisWeekCount));
+            dueThisWeekProgress.setValue(Math.min(dueThisWeekCount * 25, 100)); // assuming max 4 events = 100%
+        }
+    }
+
+    private void notifyAssessmentDue(String[] assessment) {
+        // Popup reminder for due today
+        SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this,
+                "Assessment Due Today: " + assessment[0],
+                "Reminder", JOptionPane.INFORMATION_MESSAGE));
+    }
+
+    private void notifyAssessmentDueSoon(String[] assessment) {
+        // You can expand this into tray notification or dashboard notification later
+        System.out.println("Reminder: Assessment due tomorrow: " + assessment[0]);
+    }
+
+    private List<String[]> loadAssessmentsFromFile() {
+        List<String[]> list = new ArrayList<>();
+        File file = new File("data/assessments.txt");
+        if (!file.exists()) return list;
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String l;
+            while ((l = reader.readLine()) != null) {
+                String[] parts = l.split("\\|");
+                if (parts.length == 4) {
+                    list.add(parts);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    private void saveAssessmentsToFile(List<String[]> list) {
+        try {
+            File dataDir = new File("data");
+            if (!dataDir.exists()) dataDir.mkdirs();
+
+            try (PrintWriter writer = new PrintWriter(new FileWriter("data/assessments.txt"))) {
+                for (String[] a : list) {
+                    writer.println(String.join("|", a));
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
     private JPanel createClassesPanel() {
         JPanel panel = new JPanel(new BorderLayout());
@@ -1298,58 +1724,172 @@ public class Dashboard extends JFrame {
     }
 
     private JPanel createCalendarPanel() {
-        JPanel panel = new JPanel(new BorderLayout());
+        JPanel panel = new JPanel(new BorderLayout(10,10));
         panel.setBackground(Color.WHITE);
 
-        JLabel monthLabel = new JLabel("", SwingConstants.CENTER);
-        monthLabel.setFont(new Font("Segoe UI", Font.BOLD, 28));
-        panel.add(monthLabel, BorderLayout.NORTH);
+        calendarMonthLabel = new JLabel("", SwingConstants.CENTER);
+        calendarMonthLabel.setFont(new Font("Segoe UI", Font.BOLD, 28));
+        panel.add(calendarMonthLabel, BorderLayout.NORTH);
 
-        JPanel calendarGrid = new JPanel(new GridLayout(0, 7, 5, 5));
-        calendarGrid.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        panel.add(calendarGrid, BorderLayout.CENTER);
+        calendarGridPanel = new JPanel(new GridLayout(0,7,5,5));
+        calendarGridPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        panel.add(calendarGridPanel, BorderLayout.CENTER);
 
-        Map<LocalDate, List<String[]>> events = loadEvents();
+        // Load events once
+        events = loadEvents();
 
-        updateCalendar(calendarGrid, monthLabel, events);
+        // Start month at January 2025
+        calendarCurrentMonth = YearMonth.of(2025, 1);
+        updateCalendar(calendarGridPanel, calendarMonthLabel, events, calendarCurrentMonth);
 
-        JButton addEventBtn = new JButton("Add Event");
-        addEventBtn.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        addEventBtn.addActionListener(e -> {
-            JTextField titleField = new JTextField();
-            JTextField dateField = new JTextField("dd-MM-yyyy");
-            String[] types = {"Quiz", "Mid", "Lab", "Exam"};
-            JComboBox<String> typeCombo = new JComboBox<>(types);
+        JPanel navPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 5));
+        JButton prevBtn = new JButton("<");
+        JButton nextBtn = new JButton(">");
 
-            JPanel inputPanel = new JPanel(new GridLayout(0, 1));
-            inputPanel.add(new JLabel("Title:"));
-            inputPanel.add(titleField);
-            inputPanel.add(new JLabel("Date (dd-MM-yyyy):"));
-            inputPanel.add(dateField);
-            inputPanel.add(new JLabel("Type:"));
-            inputPanel.add(typeCombo);
+        prevBtn.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        nextBtn.setFont(new Font("Segoe UI", Font.BOLD, 20));
 
-            int result = JOptionPane.showConfirmDialog(panel, inputPanel, "Add Event", JOptionPane.OK_CANCEL_OPTION);
-            if (result == JOptionPane.OK_OPTION) {
-                try {
-                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
-                    LocalDate date = LocalDate.parse(dateField.getText(), formatter);
-                    String title = titleField.getText();
-                    String type = typeCombo.getSelectedItem().toString();
+        navPanel.add(prevBtn);
+        navPanel.add(nextBtn);
 
-                    events.computeIfAbsent(date, k -> new ArrayList<>()).add(new String[]{title, type});
-                    saveEvents(events);
-                    updateCalendar(calendarGrid, monthLabel, events);
-                } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(panel, "Invalid date format. Please use dd-MM-yyyy");
-                }
+        panel.add(navPanel, BorderLayout.SOUTH);
+
+        prevBtn.addActionListener(e -> {
+            calendarCurrentMonth = calendarCurrentMonth.minusMonths(1);
+            if (calendarCurrentMonth.getYear() != 2025) {
+                calendarCurrentMonth = calendarCurrentMonth.plusMonths(1); // keep in 2025
+                return;
             }
+            updateCalendar(calendarGridPanel, calendarMonthLabel, events, calendarCurrentMonth);
         });
-        panel.add(addEventBtn, BorderLayout.SOUTH);
+
+        nextBtn.addActionListener(e -> {
+            calendarCurrentMonth = calendarCurrentMonth.plusMonths(1);
+            if (calendarCurrentMonth.getYear() != 2025) {
+                calendarCurrentMonth = calendarCurrentMonth.minusMonths(1); // keep in 2025
+                return;
+            }
+            updateCalendar(calendarGridPanel, calendarMonthLabel, events, calendarCurrentMonth);
+        });
 
         return panel;
     }
 
+    private void updateCalendar(JPanel calendarGrid, JLabel monthLabel, Map<LocalDate, List<String[]>> events, YearMonth month) {
+        calendarGrid.removeAll();
+
+        monthLabel.setText(month.getMonth().name() + " " + month.getYear());
+
+        String[] days = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+        for (String dayName : days) {
+            JLabel dayLabel = new JLabel(dayName, SwingConstants.CENTER);
+            dayLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+            if (dayName.equals("Fri") || dayName.equals("Sat")) {
+                dayLabel.setForeground(Color.RED);
+            } else {
+                dayLabel.setForeground(Color.DARK_GRAY);
+            }
+            calendarGrid.add(dayLabel);
+        }
+
+        LocalDate firstOfMonth = month.atDay(1);
+        int startDay = firstOfMonth.getDayOfWeek().getValue() % 7; // Sunday=0
+
+        int daysInMonth = month.lengthOfMonth();
+
+        for (int i = 0; i < startDay; i++) {
+            calendarGrid.add(new JLabel(""));
+        }
+
+        for (int day = 1; day <= daysInMonth; day++) {
+            LocalDate date = month.atDay(day);
+            JButton dayBtn = new JButton(String.valueOf(day));
+            dayBtn.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+            dayBtn.setMargin(new Insets(0,0,0,0));
+            dayBtn.setFocusPainted(false);
+
+            // Highlight Friday and Saturday red
+            DayOfWeek dow = date.getDayOfWeek();
+            if (dow == DayOfWeek.FRIDAY || dow == DayOfWeek.SATURDAY) {
+                dayBtn.setForeground(Color.RED);
+            }
+
+            // Highlight days with events
+            if (events.containsKey(date)) {
+                dayBtn.setBackground(new Color(135, 206, 235)); // light blue
+                List<String[]> evts = events.get(date);
+                String tooltip = "";
+                for (String[] ev : evts) {
+                    tooltip += ev[0] + " (" + ev[1] + ")\n";
+                }
+                dayBtn.setToolTipText("<html>" + tooltip.replace("\n", "<br>") + "</html>");
+            } else {
+                dayBtn.setBackground(Color.WHITE);
+            }
+
+            // On click, show events for day
+            dayBtn.addActionListener(e -> {
+                List<String[]> evts = events.get(date);
+                if (evts == null || evts.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "No events on " + date.toString());
+                } else {
+                    String msg = "";
+                    for (String[] ev : evts) {
+                        msg += ev[1] + ": " + ev[0] + "\n";
+                    }
+                    JOptionPane.showMessageDialog(this, msg, "Events on " + date.toString(), JOptionPane.INFORMATION_MESSAGE);
+                }
+            });
+
+            calendarGrid.add(dayBtn);
+        }
+
+        calendarGrid.revalidate();
+        calendarGrid.repaint();
+    }
+
+    private Map<LocalDate, List<String[]>> loadEvents() {
+        Map<LocalDate, List<String[]>> map = new HashMap<>();
+        File file = new File("data/events.txt");
+        if (!file.exists()) return map;
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split("\\|");
+                if (parts.length == 3) {
+                    LocalDate date = LocalDate.parse(parts[0], formatter);
+                    String title = parts[1];
+                    String type = parts[2];
+                    map.computeIfAbsent(date, k -> new ArrayList<>()).add(new String[]{title, type});
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return map;
+    }
+
+    private void saveEvents(Map<LocalDate, List<String[]>> events) {
+        try {
+            File dataDir = new File("data");
+            if (!dataDir.exists()) dataDir.mkdirs();
+
+            try (PrintWriter writer = new PrintWriter(new FileWriter("data/events.txt"))) {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                for (Map.Entry<LocalDate, List<String[]>> entry : events.entrySet()) {
+                    String dateStr = formatter.format(entry.getKey());
+                    for (String[] ev : entry.getValue()) {
+                        writer.println(dateStr + "|" + ev[0] + "|" + ev[1]);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
 
     private JPanel createReportsPanel() {
@@ -1361,4 +1901,66 @@ public class Dashboard extends JFrame {
         return panel;
     }
 
+    private void showPage(String name) {
+        mainContentPanel.removeAll();
+        mainContentPanel.add(pages.get(name), BorderLayout.CENTER);
+        mainContentPanel.revalidate();
+        mainContentPanel.repaint();
+
+        if (name.equals("Dashboard")) {
+            updateDashboardData();
+            updateDashboardCompletionRate();
+        } else if (name.equals("Assessments")) {
+            refreshAssessmentStatuses();
+            updateDashboardCompletionRate();
+        }
+    }
+
+
+    private void updateDashboardCompletionRate() {
+        if (assessmentDataList == null || assessmentDataList.isEmpty()) {
+            if (progressCardValueLabel != null) progressCardValueLabel.setText("0%");
+            if (progressCardProgressBar != null) progressCardProgressBar.setValue(0);
+            return;
+        }
+
+        long completedCount = assessmentDataList.stream().filter(a -> "Completed".equalsIgnoreCase(a[3])).count();
+        int percent = (int) ((completedCount * 100) / assessmentDataList.size());
+
+        if (progressCardValueLabel != null)
+            progressCardValueLabel.setText(percent + "%");
+        if (progressCardProgressBar != null)
+            progressCardProgressBar.setValue(percent);
+    }
+
+
+    // Custom rounded border class
+    private static class RoundedBorder implements Border {
+        private int radius;
+        private Color color;
+
+        public RoundedBorder(int radius, Color color) {
+            this.radius = radius;
+            this.color = color;
+        }
+
+        @Override
+        public Insets getBorderInsets(Component c) {
+            return new Insets(radius/2, radius/2, radius/2, radius/2);
+        }
+
+        @Override
+        public boolean isBorderOpaque() {
+            return false;
+        }
+
+        @Override
+        public void paintBorder(Component c, Graphics g, int x, int y, int width, int height) {
+            Graphics2D g2d = (Graphics2D) g.create();
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2d.setColor(color);
+            g2d.drawRoundRect(x, y, width - 1, height - 1, radius, radius);
+            g2d.dispose();
+        }
+    }
 }
