@@ -1,0 +1,4 @@
+Calculus 2|Differential Equation Book|PDF|https://students.aiu.edu/submissions/profiles/resources/onlineBook/P6E5w8_differential%20equations%20blanchard%204th.pdf
+Statistics|Hypothesis Testing|Link|https://youtube.com/playlist?list=PLEHGYFbPuuMEyKDmzvYvoMzSxUJnwx-JT&si=AKOo6XSucelAIMew
+Statistics|Regression Model|Link|https://youtube.com/playlist?list=PL-p9JpwN5NNHaP9BngSyJyfk879ydH3BU&si=Epbsvrz2MiU-P4Nt
+Data Structure|Searching And Sorting|Slides|https://classroom.google.com/c/NzcyNzk3MTIyNTkw/m/NzcyNzk3MTIyNTk5/details
