@@ -35,7 +35,7 @@ public class Dashboard extends JFrame {
     private JProgressBar totalCoursesProgress;
     private JProgressBar studyResourcesProgress;
     private JProgressBar dueThisWeekProgress;
-
+    JProgressBar progressBar = new JProgressBar(0, 100);
 
 
     // Shared events map for calendar and assessments
@@ -63,6 +63,7 @@ public class Dashboard extends JFrame {
     private JPanel activityContentPanel;
     private DefaultListModel<String> deadlinesList = new DefaultListModel<>();
     private DefaultListModel<String> activityList = new DefaultListModel<>();
+
 
     private static class Resource {
         String name;
@@ -459,13 +460,6 @@ public class Dashboard extends JFrame {
     }
 
     private JPanel createStatsPanel() {
-        studyResourcesProgress = new JProgressBar(0, 100);
-        studyResourcesProgress.setValue(0);
-        studyResourcesProgress.setStringPainted(false);
-        studyResourcesProgress.setBackground(new Color(240, 240, 240));
-        studyResourcesProgress.setForeground(new Color(33, 150, 243));  // blue accent or your choice
-        studyResourcesProgress.setPreferredSize(new Dimension(0, 8));
-        studyResourcesProgress.setBorderPainted(false);
 
         JPanel statsPanel = new JPanel(new GridLayout(1, 4, 20, 0));
         statsPanel.setBackground(new Color(245, 247, 250));
@@ -491,14 +485,6 @@ public class Dashboard extends JFrame {
     }
 
     private JPanel createStatCard(String icon, String label, String value, Color accentColor, int progressValue) {
-        totalCoursesProgress = new JProgressBar(0, 100);
-        totalCoursesProgress.setValue(0);
-        totalCoursesProgress.setStringPainted(false);
-        totalCoursesProgress.setBackground(new Color(240, 240, 240));
-        totalCoursesProgress.setForeground(new Color(76, 175, 80));  // Adjust color as desired
-        totalCoursesProgress.setPreferredSize(new Dimension(0, 8));
-        totalCoursesProgress.setBorderPainted(false);
-
         JPanel card = new JPanel(new BorderLayout());
         card.setBackground(Color.WHITE);
         card.setBorder(BorderFactory.createCompoundBorder(
@@ -518,29 +504,28 @@ public class Dashboard extends JFrame {
         valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 32));
         valueLabel.setForeground(new Color(51, 51, 51));
 
-        // Save references for dynamic updates
+        // Create a NEW progress bar for EACH card
+        JProgressBar progressBar = new JProgressBar(0, 100);
+        progressBar.setValue(progressValue);
+        progressBar.setStringPainted(false);
+        progressBar.setPreferredSize(new Dimension(0, 8));
+        progressBar.setBorderPainted(false);
+        progressBar.setBackground(new Color(240, 240, 240));
+        progressBar.setForeground(accentColor);
+
+        // Save references accordingly
         if (label.equals("Total Courses")) {
+            totalCoursesProgress = progressBar;
             totalCoursesValue = valueLabel;
         } else if (label.equals("Study Resources")) {
+            studyResourcesProgress = progressBar;
             studyResourcesValue = valueLabel;
         } else if (label.equals("Due This Week")) {
+            dueThisWeekProgress = progressBar;
             dueThisWeekValue = valueLabel;
-            dueThisWeekProgress = new JProgressBar(0,100);
-            dueThisWeekProgress.setValue(progressValue);
-            dueThisWeekProgress.setStringPainted(false);
-            dueThisWeekProgress.setBackground(new Color(240, 240, 240));
-            dueThisWeekProgress.setForeground(accentColor);
-            dueThisWeekProgress.setPreferredSize(new Dimension(0, 8));
-            dueThisWeekProgress.setBorderPainted(false);
         } else if (label.equals("Completion Rate")) {
+            progressCardProgressBar = progressBar;
             progressCardValueLabel = valueLabel;
-            progressCardProgressBar = new JProgressBar(0, 100);
-            progressCardProgressBar.setValue(progressValue);
-            progressCardProgressBar.setStringPainted(false);
-            progressCardProgressBar.setBackground(new Color(240, 240, 240));
-            progressCardProgressBar.setForeground(accentColor);
-            progressCardProgressBar.setPreferredSize(new Dimension(0, 8));
-            progressCardProgressBar.setBorderPainted(false);
         }
 
         headerPanel.add(iconLabel, BorderLayout.WEST);
@@ -553,22 +538,7 @@ public class Dashboard extends JFrame {
         JPanel progressPanel = new JPanel(new BorderLayout());
         progressPanel.setBackground(Color.WHITE);
         progressPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
-
-        // Add the progress bar depending on label
-        if (label.equals("Due This Week") && dueThisWeekProgress != null) {
-            progressPanel.add(dueThisWeekProgress, BorderLayout.CENTER);
-        } else if (label.equals("Completion Rate") && progressCardProgressBar != null) {
-            progressPanel.add(progressCardProgressBar, BorderLayout.CENTER);
-        } else {
-            JProgressBar pb = new JProgressBar(0, 100);
-            pb.setValue(progressValue);
-            pb.setStringPainted(false);
-            pb.setBackground(new Color(240, 240, 240));
-            pb.setForeground(accentColor);
-            pb.setPreferredSize(new Dimension(0, 8));
-            pb.setBorderPainted(false);
-            progressPanel.add(pb, BorderLayout.CENTER);
-        }
+        progressPanel.add(progressBar, BorderLayout.CENTER); // Always add the current progressBar
 
         card.add(headerPanel, BorderLayout.NORTH);
         card.add(labelText, BorderLayout.CENTER);
@@ -580,7 +550,6 @@ public class Dashboard extends JFrame {
             public void mouseEntered(MouseEvent e) {
                 card.setBackground(new Color(248, 249, 250));
             }
-
             @Override
             public void mouseExited(MouseEvent e) {
                 card.setBackground(Color.WHITE);
